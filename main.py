@@ -1,6 +1,12 @@
 import discord
 import random
-import token
+import json
+
+with open('token.json', 'r') as arquivo:
+    json = json.load(arquivo)
+    token = json['token']
+    server_id = json['server_id']
+    #print(json['token'])
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -16,7 +22,7 @@ class Cyberia(discord.Client):
         await self.wait_until_ready()
         if not self.synced:
             await tree.sync(guild=discord.Object(
-                '949532298007679008'))
+                server_id))
             self.synced = True
         if not self.added:
             self.added = True
@@ -27,12 +33,12 @@ client = Cyberia()
 tree = discord.app_commands.CommandTree(client)
 
 
-@tree.command(description='teste por rafaax', guild=discord.Object('949532298007679008'))
+@tree.command(description='teste por rafaax', guild=discord.Object(server_id))
 async def greet(interaction: discord.Interaction):
     await interaction.response.send_message('...')
 
 
-@tree.command(description='rola um dado', guild=discord.Object('949532298007679008'))
+@tree.command(description='rola um dado', guild=discord.Object(server_id))
 async def d20(interaction: discord.Interaction):
     roll = random.randint(1, 20)
     await interaction.response.send_message(roll)
@@ -51,6 +57,9 @@ async def on_message(message):
         await message.channel.send("...")
         return
 
+    if message.content == '029384767283943':
+        return
+
 
 # add the token of your bot
-client.run('')
+client.run(token)
