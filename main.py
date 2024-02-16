@@ -1,26 +1,10 @@
 import discord
 import random
+from Cyberia import Cyberia
 
 # This will load the permissions the bot has been granted in the previous configuration
 intents = discord.Intents.default()
 intents.message_content = True
-
-
-class Cyberia(discord.Client):
-    def __init__(self):
-        super().__init__(intents=intents)
-        self.synced = False
-        self.added = False
-
-    async def on_ready(self):
-        await self.wait_until_ready()
-        if not self.synced:  # check if slash commands have been synced 
-            await tree.sync(guild=discord.Object(
-                '949532298007679008'))  # guild specific: you can leave sync() blank to make it global. But it can take up to 24 hours, so test it in a specific guild.
-            self.synced = True
-        if not self.added:
-            self.added = True
-        print(f"Say hi to {self.user}!")
 
 
 client = Cyberia()
