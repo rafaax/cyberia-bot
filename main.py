@@ -1,5 +1,6 @@
 import discord
 import random
+import token
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -52,4 +53,4 @@ async def on_message(message):
 
 
 # add the token of your bot
-client.run('MTIwNzg0NzY1ODEyODAxOTUwNg.GcAotA.guBxC6hkfRLT-94rtdHj8KjFoDiV8Pclyygla4')
+client.run('')
