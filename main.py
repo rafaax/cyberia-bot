@@ -6,7 +6,7 @@ with open('token.json', 'r') as arquivo:
     json = json.load(arquivo)
     token = json['token']
     server_id = json['server_id']
-    #print(json['token'])
+    # print(json['token'])
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -57,9 +57,9 @@ async def on_message(message):
         await message.channel.send("...")
         return
 
-    if message.content == '029384767283943':
+    if message.content.startswith('029384767283943'):
+        await message.channel.send(server_id)
         return
 
 
-# add the token of your bot
 client.run(token)
