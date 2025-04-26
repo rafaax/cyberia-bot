@@ -2,7 +2,11 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+<<<<<<< HEAD
       <module fileurl="file://$PROJECT_DIR$/.idea/cyberia-bot.iml" filepath="$PROJECT_DIR$/.idea/cyberia-bot.iml" />
+=======
+      <module fileurl="file://$PROJECT_DIR$/.idea/cyberia_tests.iml" filepath="$PROJECT_DIR$/.idea/cyberia_tests.iml" />
+>>>>>>> 01f9f72dd9844b156e2cfbf76134c3c0118cc2e2
     </modules>
   </component>
 </project>
