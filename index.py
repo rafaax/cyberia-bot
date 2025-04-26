@@ -13,7 +13,7 @@ import asyncio
 load_dotenv()
 
 TOKEN = os.getenv("DISCORD_TOKEN_TEST")
-bot_version = os.getenv("BOT_VERSION")
+bot_version = os.getenv("BOT_VERSION", "0")
 GUILD_ID = os.getenv("GUILD_ID")     # id do cyberia server
 
 if not TOKEN:
