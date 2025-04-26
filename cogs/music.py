@@ -111,24 +111,26 @@ class MusicCog(commands.Cog):
         self._cancel_inactivity_check(guild_id) # tira o estado de inativdade, pois houve atividade
 
         if guild_id in self.queues and self.queues[guild_id]:
-            song_info = self.queues[guild_id].popleft()
-            self.current_song[guild_id] = song_info
-            # Atualiza o último canal conhecido
-            if song_info.get('channel'):
-                self.last_text_channel[guild_id] = song_info['channel']
+            song_info = self.queues[guild_id].popleft() # Pega a próxima música da fila
+            self.current_song[guild_id] = song_info # Atualiza a música atual tocando
+            
+            if song_info.get('channel'): # Se o canal de texto foi definido, atualiza o último canal conhecido
+                self.last_text_channel[guild_id] = song_info['channel'] 
 
-            vc = guild.voice_client
+            vc = guild.voice_client # Pega o VoiceClient da guild
+
             if not vc or not vc.is_connected():
-                print(f"Erro: VoiceClient não encontrado ou desconectado na guild {guild_id} ao iniciar _play_next.")
+                print(f"Erro: VoiceClient não encontrado ou desconectado na guild {guild_id} ao iniciar _play_next.") 
                 self._cleanup_guild_state(guild_id) # Limpa estado se desconectado
-                return
+                return # morre aqui
 
             print(f"[{guild_id}] Tocando próxima: {song_info['title']}")
-            try:
-                source = await discord.FFmpegOpusAudio.from_probe(song_info['source_url'], **FFMPEG_OPTIONS)
-                vc.play(source, after=lambda e: self.bot.loop.create_task(self._handle_after_play(e, guild_id)))
 
-                if song_info.get('channel'):
+            try:
+                source = await discord.FFmpegOpusAudio.from_probe(song_info['source_url'], **FFMPEG_OPTIONS) # Cria o source de áudio
+                vc.play(source, after=lambda e: self.bot.loop.create_task(self._handle_after_play(e, guild_id))) # Toca a música e define o callback para quando terminar
+
+                if song_info.get('channel'): # Se o canal de texto foi definido, envia a mensagem de "tocando agora"
                     try:
                         await song_info['channel'].send(embed=discord.Embed(
                             description=f"🎶 Tocando: **{song_info['title']}** (Pedido por: {song_info['requester'].mention})",
@@ -145,23 +147,27 @@ class MusicCog(commands.Cog):
                         await song_info['channel'].send(f"❌ Erro ao tocar **{song_info['title']}**: {e}")
                     except discord.HTTPException:
                         pass
-                # Mesmo com erro, chama handle_after_play para limpar e tentar a próxima
-                self.bot.loop.create_task(self._handle_after_play(e, guild_id))
+                
+                self.bot.loop.create_task(self._handle_after_play(e, guild_id)) # Mesmo com erro, chama handle_after_play para limpar e tentar a próxima na esperança 
+        
         else:
             # Fila vazia, agenda a verificação de inatividade
+
             print(f"[{guild_id}] Fila vazia após tentativa de _play_next.")
-            vc = guild.voice_client
-            if vc and vc.is_connected(): # Só agenda se ainda estiver conectado
+            
+            vc = guild.voice_client # Pega o VoiceClient da guild
+            if vc and vc.is_connected(): # Só agenda se ainda estiver conectado no canal 
                 self._schedule_inactivity_check(guild_id)
             else:
-                # Se não está conectado, apenas garante a limpeza
-                self._cleanup_guild_state(guild_id)
+                print(f"[{guild_id}] VoiceClient desconectado ou não encontrado. Limpando estado.")
+                self._cleanup_guild_state(guild_id)  # Limpa o estado da guild, pois não há mais conexão com o canal de voz
 
     async def _handle_after_play(self, error, guild_id):
         """Callback chamado após uma música terminar ou dar erro."""
+        
         finished_song_info = self.current_song.pop(guild_id, None) # Pega E REMOVE a música atual
 
-        if error:
+        if error: # Se houve erro na reprodução
             print(f"Erro durante a reprodução na guild {guild_id}: {error}")
             if finished_song_info and finished_song_info.get('channel'):
                 notify_channel = finished_song_info['channel']
@@ -179,16 +185,31 @@ class MusicCog(commands.Cog):
                     print(f"[{guild_id}] Falha ao enviar mensagem de erro para o canal {notify_channel.id}")
                 except Exception as e:
                     print(f"[{guild_id}] Erro inesperado ao enviar mensagem de erro: {e}")
-        else:
+        
+        
+        else: # Se não houve erro, apenas informa que a música terminou
+            
             title = finished_song_info.get('title', 'Desconhecida') if finished_song_info else 'Desconhecida'
             print(f"[{guild_id}] Música '{title}' concluída.")
-            # Atualiza last_text_channel se a música tocou com sucesso
-            if finished_song_info and finished_song_info.get('channel'):
+            
+            if finished_song_info and finished_song_info.get('channel'): 
+                # Atualiza last_text_channel se a música tocou com sucesso
                 self.last_text_channel[guild_id] = finished_song_info.get('channel')
 
-        # Tenta tocar a próxima. _play_next agendará inatividade se a fila estiver vazia.
-        await self._play_next(guild_id)
+        
+        await self._play_next(guild_id) # Tenta tocar a próxima. _play_next agendará inatividade se a fila estiver vazia.
 
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     # --- Comandos (Modificações em tocar, pular, retomar, parar, sair) ---
 
     @app_commands.command(name='tocar', description='Toca uma música do YouTube ou adiciona à fila')
