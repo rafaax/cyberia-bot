@@ -2,36 +2,34 @@ import json
 import inspect
 import discord
 import yt_dlp
-
+from dotenv import load_dotenv
+import os
 from discord import Interaction, app_commands, Intents, Client
 
-# Leitura e salvamento do token no config.json
-try:
-    with open("storage/config.json") as f:
-        config = json.load(f)
-except (FileNotFoundError, json.JSONDecodeError):
-    config = {}
 
-token = config.get("token", None)
+# --------- CONFIGURAÇÕES ---------
+# Carrega as variáveis de ambiente do arquivo .env
+# Certifique-se de que o arquivo .env contém a variável DISCORD_TOKEN
+# O arquivo .env deve estar no mesmo diretório que este script
+
+
+load_dotenv()
+
+token = os.getenv("DISCORD_TOKEN")
+
+
 if not token:
-    token = input('Cole seu token do Discord aqui: ').strip()
-    config["token"] = token
-    with open("storage/config.json", "w") as f:
-        json.dump(config, f, indent=2)
-else:
-    print(
-        f"\n--- Detected token in ./config.json"
-        " (saved from a previous run). Using stored token. ---\n"
-    )
+    raise ValueError("Token do Discord não encontrado. Defina DISCORD_TOKEN no arquivo .env.")
+
 
 # --------- BOT SETUP ---------
-# Escolha intents adequadas ao funcionamento dos comandos de música e slash
-intents = Intents.default()
-intents.message_content = True  # Necessário para responder mensagens (caso use comandos normais futuramente)
-intents.guilds = True
-intents.voice_states = True
 
-GUILD_ID = 949532298007679008  # Coloque aqui o ID do seu servidor
+intents = Intents.default() # Permissões padrão
+intents.message_content = True # Permissão para ler o conteúdo das mensagens
+intents.guilds = True # Permissão para ler os dados do servidor
+intents.voice_states = True # Permissão para ler os dados dos canais de voz
+
+GUILD_ID = 949532298007679008  # id do cyberia server
 
 class Cyberia(Client):
     def __init__(self, *, intents: Intents):
@@ -45,18 +43,8 @@ client = Cyberia(intents=intents)
 
 # ----------- COMANDOS -----------
 
-@client.tree.command(description='Envia um Olá', guild=discord.Object(GUILD_ID))
-async def hello(interaction: Interaction):
-    print(f"> {interaction.user} used the command 'hello'.")
-    await interaction.response.send_message(f"Olá **{interaction.user}** :flushed:.")
-
-@client.tree.command(description='Envia um "Joke"', guild=discord.Object(GUILD_ID))
-async def haha(interaction: Interaction):
-    print(f"> {interaction.user} used the command 'haha'.")
-    await interaction.response.send_message(':joy:')
-
 @client.event
-async def on_ready():
+async def on_ready():  # Evento chamado quando o bot está pronto
     print(f"cyberia bot online {client.user}")
 
 @client.tree.command(description='Tocar música do YouTube', guild=discord.Object(GUILD_ID))
