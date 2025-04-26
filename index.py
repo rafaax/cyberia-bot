@@ -8,10 +8,6 @@ from discord import Interaction, app_commands, Intents, Client
 
 
 # --------- CONFIGURAÇÕES ---------
-# Carrega as variáveis de ambiente do arquivo .env
-# Certifique-se de que o arquivo .env contém a variável DISCORD_TOKEN
-# O arquivo .env deve estar no mesmo diretório que este script
-
 
 load_dotenv()
 
