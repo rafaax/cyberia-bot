@@ -3,16 +3,15 @@ import discord
 from discord.ext import commands
 import os
 import asyncio
-import config # Importa as configurações
+import config
 
 # --- BOT SETUP ---
 intents = discord.Intents.default()
 intents.message_content = True # Necessário se você planeja ler mensagens no futuro
-intents.guilds = True
+intents.guilds = True # Necessário para comandos de slash
 intents.voice_states = True # Essencial para comandos de voz
 
 # --- Classe do Bot ---
-# É uma boa prática encapsular a lógica de setup dentro de uma classe de bot
 class CyberiaBot(commands.Bot):
     def __init__(self):
         # command_prefix é tecnicamente necessário, mas não usado para slash commands
@@ -79,23 +78,22 @@ class CyberiaBot(commands.Bot):
                  print(f"Erro inesperado durante a sincronização de servidor: {e}")
         else:
             print("GUILD_ID não definido no .env. Sincronização específica de servidor pulada.")
-            # Opcional: Sincronizar globalmente (pode levar até 1 hora para atualizar)
-            # try:
-            #    synced = await self.tree.sync()
-            #    print(f"Sincronizados {len(synced)} comandos globalmente.")
-            # except Exception as e:
-            #    print(f"Falha ao sincronizar comandos globalmente: {e}")
+            try:
+               synced = await self.tree.sync()
+               print(f"Sincronizados {len(synced)} comandos globalmente.")
+            except Exception as e:
+               print(f"Falha ao sincronizar comandos globalmente: {e}")
 
         print("--- setup_hook concluído ---")
 
 
     async def on_ready(self):
         """Chamado quando o bot está pronto e operacional."""
-        # Este evento agora pode ser mais simples, pois o setup já ocorreu.
+        print('------------------------------------')
         print(f'--- Bot {self.user} está online! ---')
         print(f'Versão: {config.BOT_VERSION}')
-        if self.user: # Checagem de segurança/tipo
-            print(f'ID do Bot: {self.user.id}') # O Application ID estará disponível aqui
+        if self.user:
+            print(f'ID do Bot: {self.user.id}')
         print(f'Servidor de Teste ID: {config.GUILD_ID_INT}')
         print('------------------------------------')
 
@@ -106,7 +104,7 @@ async def main():
     async with bot: # O 'async with' gerencia o login e logout automaticamente
         await bot.start(config.TOKEN)
 
-# --- Executar o Bot ---
+
 if __name__ == "__main__":
     try:
         # discord.utils.setup_logging(level=logging.INFO, root=False)
