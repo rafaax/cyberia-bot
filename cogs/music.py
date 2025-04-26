@@ -212,7 +212,7 @@ class MusicCog(commands.Cog):
     
     
     
-    # --- Comandos (Modificações em tocar, pular, retomar, parar, sair) ---
+    # --- Comandos ---
 
     @app_commands.command(name='tocar', description='Toca uma música do YouTube ou adiciona à fila')
     @app_commands.describe(url='URL do vídeo ou playlist do YouTube')
@@ -385,11 +385,8 @@ class MusicCog(commands.Cog):
 
         print(f"[{guild_id}] {interaction.user} pulou a música.")
         await interaction.response.send_message(f"⏭️ Pulando {title}...")
-
-        # Cancela timer antes de parar, pois pular é uma ação
-        # self._cancel_inactivity_check(guild_id) # _handle_after_play -> _play_next cuidará disso
-        # Parar a música atual acionará _handle_after_play
-        vc.stop()
+    
+        vc.stop() # Parar a música atual acionará _handle_after_play
 
 
     @app_commands.command(name='retomar', description='Retoma a música pausada')
@@ -397,20 +394,27 @@ class MusicCog(commands.Cog):
     async def retomar(self, interaction: Interaction):
         """Retoma a música que estava pausada."""
         guild = interaction.guild
-        if not guild: return
-        guild_id = guild.id
-        self.last_text_channel[guild_id] = interaction.channel # Atualiza canal
 
-        vc = interaction.guild.voice_client
-        if vc and vc.is_paused():
-            # Cancela timer pois retomar é atividade
-            self._cancel_inactivity_check(guild_id)
-            vc.resume()
+        if not guild:  # Verifica se o comando foi chamado em um servidor
+            return
+        
+
+        guild_id = guild.id # Pega o ID da guild
+
+        self.last_text_channel[guild_id] = interaction.channel # Atualiza canal que o comando foi chamado
+
+        vc = interaction.guild.voice_client # Pega o VoiceClient da guild
+
+        if vc and vc.is_paused(): # Verifica se o bot está pausado
+            self._cancel_inactivity_check(guild_id) # Cancela timer pois retomar é uma atividade válida
+            vc.resume() # Retoma a música pausada
+
             print(f"> {interaction.user} retomou a música.")
             await interaction.response.send_message("▶️ Música retomada!")
-        elif vc and vc.is_playing():
+
+        elif vc and vc.is_playing(): # Verifica se já está tocando
             await interaction.response.send_message("A música já está tocando.", ephemeral=True)
-        else:
+        else: # Caso não esteja tocando ou pausado
             await interaction.response.send_message("Não há música pausada para retomar.", ephemeral=True)
 
 
@@ -418,22 +422,27 @@ class MusicCog(commands.Cog):
     @app_commands.guilds(discord.Object(id=config.GUILD_ID_INT))
     async def parar(self, interaction: Interaction):
         """Para a reprodução de música atual e limpa a fila."""
-        guild = interaction.guild
-        if not guild: return
-        guild_id = guild.id
-        self.last_text_channel[guild_id] = interaction.channel # Atualiza canal
 
-        vc = guild.voice_client
-        was_active = vc and (vc.is_playing() or vc.is_paused())
+        guild = interaction.guild # Pega a guild do comando
+
+        if not guild: # Verifica se o comando foi chamado em um servidor
+            return 
+        
+        guild_id = guild.id # Pega o ID da guild
+
+        self.last_text_channel[guild_id] = interaction.channel # Atualiza canal onde o comando foi chamado
+
+        vc = guild.voice_client # Pega o VoiceClient da guild
+
+        was_active = vc and (vc.is_playing() or vc.is_paused()) # Verifica se estava tocando ou pausado
 
         print(f"> {interaction.user} usou /parar.")
-        # Limpa estado ANTES de parar
-        self._cleanup_guild_state(guild_id) # Limpa tudo, incluindo timer
+        
+        self._cleanup_guild_state(guild_id) # Limpa tudo, incluindo timer antes de parar a música
 
-        if was_active:
+        if was_active: # Se estava tocando ou pausado
             vc.stop() # Para a reprodução (não vai mais chamar _handle_after_play pois o estado está limpo)
             await interaction.response.send_message("⏹️ Música parada e fila limpa.")
-            # Não precisa agendar inatividade aqui, pois o estado está limpo
         else:
             await interaction.response.send_message("Não estava tocando nada, mas limpei a fila.", ephemeral=True)
 
@@ -442,23 +451,122 @@ class MusicCog(commands.Cog):
     @app_commands.guilds(discord.Object(id=config.GUILD_ID_INT))
     async def sair(self, interaction: Interaction):
         """Desconecta o bot do canal de voz e limpa a fila."""
-        guild = interaction.guild
-        if not guild: return
-        guild_id = guild.id
-        self.last_text_channel[guild_id] = interaction.channel # Atualiza canal
+        
+        guild = interaction.guild # Pega a guild do comando
 
-        vc = guild.voice_client
-        was_connected = vc and vc.is_connected()
+        if not guild: # Verifica se o comando foi chamado em um servidor
+            return 
+        
+        guild_id = guild.id # Pega o ID da guild
+
+        self.last_text_channel[guild_id] = interaction.channel # Atualiza canal onde o comando foi chamado
+
+        vc = guild.voice_client # Pega o VoiceClient da guild
+        
+        was_connected = vc and vc.is_connected() # Verifica se o bot está conectado ao canal de voz
 
         print(f"> {interaction.user} usou /sair.")
-        # Limpa estado ANTES de desconectar
-        self._cleanup_guild_state(guild_id) # Limpa tudo, incluindo timer
+        
+        self._cleanup_guild_state(guild_id) # Limpa tudo, incluindo timer antes de desconectar
 
-        if was_connected:
+        if was_connected: # Se estava conectado
             await vc.disconnect(force=True) # Desconecta
             await interaction.response.send_message("👋 Saí do canal de voz e limpei a fila!")
         else:
             await interaction.response.send_message("Não estava em um canal de voz.", ephemeral=True)
+
+
+
+
+    @app_commands.command(name='fila', description='Mostra a fila de músicas atual')
+    @app_commands.guilds(discord.Object(id=config.GUILD_ID_INT))
+    async def fila(self, interaction: Interaction):
+        """Exibe a fila de músicas."""
+        
+        guild = interaction.guild # Pega a guild do comando
+        
+        if not guild: # Verifica se o comando foi chamado em um servidor
+            return 
+        
+
+        guild_id = guild.id # Pega o ID da guild
+
+        self.last_text_channel[guild_id] = interaction.channel # Atualiza canal onde o comando foi chamado
+
+        queue = self.queues.get(guild_id) # Pega a fila de músicas da guild
+        current = self.current_song.get(guild_id) # Pega a música atual tocando na guild
+
+        embed = Embed(title="Fila de Músicas", color=Color.purple()) 
+
+        if current: # Se houver uma música tocando
+
+            requester_mention = current['requester'].mention if current.get('requester') else 'Desconhecido' # Se houver 'requester', pega o .mention; caso contrário, usa 'Desconhecido'
+
+            embed.add_field(
+                name="▶️ Tocando Agora",
+                value=f"[{current['title']}]({current.get('original_url', '#')})\n(Pedido por: {requester_mention})",
+                inline=False
+            )
+        else: # Se não houver música tocando
+            vc = guild.voice_client # Pega o VoiceClient da guild
+
+            if vc and vc.is_connected() and vc.is_paused(): # Se o bot está conectado e pausado
+                embed.add_field(name="⏸️ Pausado", value="Nenhuma música ativa, mas o bot está pausado.", inline=False) 
+            else:
+                embed.add_field(name="▶️ Tocando Agora", value="Nada", inline=False)
+
+        if queue: # Se houver músicas na fila
+            queue_list = [] # Lista para guardar as músicas da fila
+            max_display = 10 # Limite de músicas a serem exibidas na fila (10 por padrão)
+
+            for i, song in enumerate(list(queue)[:max_display]): # Limita a exibição a max_display músicas
+                if song.get('requester'):
+                    requester_mention = song['requester'].mention
+                else:
+                    requester_mention = 'Desconhecido'
+
+                queue_list.append(f"{i+1}. [{song['title']}]({song.get('original_url', '#')}) (por: {requester_mention})") # Adiciona a música à lista formatada
+
+            if queue_list:
+                embed.add_field( # Adiciona a lista de músicas à embed
+                    name=f" Fila ({len(queue)} música{'s' if len(queue) > 1 else ''})", 
+                    value="\n".join(queue_list), 
+                    inline=False
+                )  
+
+            if len(queue) > max_display: # Se a fila tem mais músicas do que o limite de exibição
+                embed.set_footer(text=f"... e mais {len(queue) - max_display} música(s)")
+        else: # Se não houver músicas na fila
+            embed.add_field(name=" Fila", value="A fila está vazia!", inline=False)
+
+        await interaction.response.send_message(embed=embed) # Envia a embed com a fila de músicas
+
+    @app_commands.command(name='pausar', description='Pausa a música atual')
+    @app_commands.guilds(discord.Object(id=config.GUILD_ID_INT))
+    async def pausar(self, interaction: Interaction):
+        """Pausa a música que está tocando."""
+
+        guild = interaction.guild # Pega a guild do comando
+
+        if not guild: # Verifica se o comando foi chamado em um servidor
+            return
+        
+        guild_id = guild.id # Pega o ID da guild
+        self.last_text_channel[guild_id] = interaction.channel # Atualiza canal onde o comando foi chamado
+
+        vc = interaction.guild.voice_client # Pega o VoiceClient da guild
+
+        if vc and vc.is_playing(): # Verifica se o bot está tocando música /// Pausar NÃO deve cancelar o timer de inatividade se ele estiver rodando
+            
+            vc.pause() # Pausa a música atual
+
+            print(f"> {interaction.user} pausou a música.")
+
+            await interaction.response.send_message("⏸️ Música pausada!")
+        elif vc and vc.is_paused():
+            await interaction.response.send_message("A música já está pausada.", ephemeral=True)
+        else:
+            await interaction.response.send_message("Não estou tocando nada no momento.", ephemeral=True)
 
 
     # --- Listener para Limpeza/Inatividade Automática ---
@@ -491,74 +599,6 @@ class MusicCog(commands.Cog):
                  if guild.id in self.inactivity_timers:
                       print(f"[{guild.id}] Usuário entrou no canal onde o bot estava inativo. Cancelando timer.")
                       self._cancel_inactivity_check(guild.id)
-
-
-# --- Comandos /fila, /pausar (sem mudanças relevantes para inatividade) ---
-# (Mantenha os comandos /fila e /pausar como estavam no código original)
-    @app_commands.command(name='fila', description='Mostra a fila de músicas atual')
-    @app_commands.guilds(discord.Object(id=config.GUILD_ID_INT))
-    async def fila(self, interaction: Interaction):
-        """Exibe a fila de músicas."""
-        guild = interaction.guild
-        if not guild: return
-        guild_id = guild.id
-        self.last_text_channel[guild_id] = interaction.channel # Atualiza canal
-
-        queue = self.queues.get(guild_id)
-        current = self.current_song.get(guild_id)
-
-        embed = Embed(title="Fila de Músicas", color=Color.purple())
-
-        if current:
-            requester_mention = current['requester'].mention if current.get('requester') else 'Desconhecido'
-            embed.add_field(
-                name="▶️ Tocando Agora",
-                value=f"[{current['title']}]({current.get('original_url', '#')})\n(Pedido por: {requester_mention})",
-                inline=False
-            )
-        else:
-             vc = guild.voice_client
-             if vc and vc.is_connected() and vc.is_paused():
-                  embed.add_field(name="⏸️ Pausado", value="Nenhuma música ativa, mas o bot está pausado.", inline=False)
-             else:
-                  embed.add_field(name="▶️ Tocando Agora", value="Nada", inline=False)
-
-
-        if queue:
-            queue_list = []
-            max_display = 10
-            for i, song in enumerate(list(queue)[:max_display]):
-                 requester_mention = song['requester'].mention if song.get('requester') else 'Desconhecido'
-                 queue_list.append(f"{i+1}. [{song['title']}]({song.get('original_url', '#')}) (por: {requester_mention})")
-
-            if queue_list:
-                 embed.add_field(name=f" Fila ({len(queue)} música{'s' if len(queue) > 1 else ''})", value="\n".join(queue_list), inline=False)
-            if len(queue) > max_display:
-                 embed.set_footer(text=f"... e mais {len(queue) - max_display} música(s)")
-        else:
-            embed.add_field(name=" Fila", value="A fila está vazia!", inline=False)
-
-        await interaction.response.send_message(embed=embed)
-
-    @app_commands.command(name='pausar', description='Pausa a música atual')
-    @app_commands.guilds(discord.Object(id=config.GUILD_ID_INT))
-    async def pausar(self, interaction: Interaction):
-        """Pausa a música que está tocando."""
-        guild = interaction.guild
-        if not guild: return
-        guild_id = guild.id
-        self.last_text_channel[guild_id] = interaction.channel # Atualiza canal
-
-        vc = interaction.guild.voice_client
-        if vc and vc.is_playing():
-            # Pausar NÃO deve cancelar o timer de inatividade se ele estiver rodando
-            vc.pause()
-            print(f"> {interaction.user} pausou a música.")
-            await interaction.response.send_message("⏸️ Música pausada!")
-        elif vc and vc.is_paused():
-            await interaction.response.send_message("A música já está pausada.", ephemeral=True)
-        else:
-            await interaction.response.send_message("Não estou tocando nada no momento.", ephemeral=True)
 
 
 async def setup(bot: commands.Bot):
