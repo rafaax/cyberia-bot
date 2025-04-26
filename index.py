@@ -12,10 +12,11 @@ import asyncio
 
 load_dotenv()
 
-token = os.getenv("DISCORD_TOKEN_TEST")
+TOKEN = os.getenv("DISCORD_TOKEN_TEST")
 bot_version = os.getenv("BOT_VERSION")
+GUILD_ID = os.getenv("GUILD_ID")     # id do cyberia server
 
-if not token:
+if not TOKEN:
     raise ValueError("Token do Discord não encontrado. Defina DISCORD_TOKEN no arquivo .env.")
 
 
@@ -25,8 +26,6 @@ intents = Intents.default() # Permissões padrão
 intents.message_content = True # Permissão para ler o conteúdo das mensagens
 intents.guilds = True # Permissão para ler os dados do servidor
 intents.voice_states = True # Permissão para ler os dados dos canais de voz
-
-GUILD_ID = 949532298007679008  # id do cyberia server
 
 class Cyberia(Client):
     def __init__(self, *, intents: Intents):
@@ -171,4 +170,4 @@ async def info(interaction: Interaction):
     embed.set_thumbnail(url=client.user.avatar.url)
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
-client.run(token)
+client.run(TOKEN)
