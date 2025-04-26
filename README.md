@@ -1,7 +1,6 @@
 # Cyberia Bot
 
-Cyberia Bot é um projeto desenvolvido para automatizar tarefas e oferecer funcionalidades inteligentes diretamente em servidores Discord.  
-Com comandos modernos, integração de APIs e fácil personalização, ele auxilia na gestão da comunidade e adiciona ferramentas inteligentes ao seu servidor.
+Cyberia Bot é um projeto desenvolvido para oferecer funcionalidades diretamente em servidores Discord. 
 
 ## Funcionalidades
 
