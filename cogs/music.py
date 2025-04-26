@@ -584,31 +584,32 @@ class MusicCog(commands.Cog):
     async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
         # 1. Bot foi desconectado?
         if member.id == self.bot.user.id:
-            guild = member.guild
-            if before.channel is not None and after.channel is None:
+            guild = member.guild # Pega a guild do membro
+
+            if before.channel is not None and after.channel is None: # Verifica se o bot estava em um canal e agora não está mais
                 print(f"[{guild.id}] Bot foi desconectado do canal de voz (evento). Limpando estado.")
                 self._cleanup_guild_state(guild.id) # Chama a função de limpeza
 
         # 2. Bot ficou sozinho no canal? (Alguém saiu/moveu e não é o bot)
         elif before.channel is not None and member.id != self.bot.user.id:
-            guild = before.channel.guild
-            vc = guild.voice_client
+            guild = before.channel.guild # Pega a guild do canal de voz
+            vc = guild.voice_client # Pega o VoiceClient da guild
+
             # Verifica se o bot está NO MESMO canal que a pessoa saiu E se só sobrou o bot
             if vc and vc.channel == before.channel and len(before.channel.members) == 1 and before.channel.members[0].id == self.bot.user.id:
-                 print(f"[{guild.id}] Bot ficou sozinho no canal {before.channel.name}. Agendando verificação de inatividade.")
-                 # Agenda a desconexão como se a fila tivesse acabado
-                 self._schedule_inactivity_check(guild.id)
+                print(f"[{guild.id}] Bot ficou sozinho no canal {before.channel.name}. Agendando verificação de inatividade.")
+                self._schedule_inactivity_check(guild.id) # Agenda a desconexão como se a fila tivesse acabado POIS NÃO TEM NINGUEM NO CANAL
 
         # 3. Alguém entrou no canal onde o bot estava sozinho e inativo?
-        elif after.channel is not None and member.id != self.bot.user.id:
-            guild = after.channel.guild
-            vc = guild.voice_client
+        elif after.channel is not None and member.id != self.bot.user.id: 
+            guild = after.channel.guild # Pega a guild do canal de voz
+            vc = guild.voice_client # Pega o VoiceClient da guild
             # Verifica se o bot está nesse canal, se antes só tinha ele e se agora tem mais gente
             if vc and vc.channel == after.channel and len(after.channel.members) > 1 and len(before.channel.members) == 1 if before.channel == after.channel else True :
-                 # Verifica se havia um timer de inatividade agendado
-                 if guild.id in self.inactivity_timers:
-                      print(f"[{guild.id}] Usuário entrou no canal onde o bot estava inativo. Cancelando timer.")
-                      self._cancel_inactivity_check(guild.id)
+                # Verifica se havia um timer de inatividade agendado
+                if guild.id in self.inactivity_timers:
+                    print(f"[{guild.id}] Usuário entrou no canal onde o bot estava inativo. Cancelando timer.")
+                    self._cancel_inactivity_check(guild.id)
 
 
 async def setup(bot: commands.Bot):
