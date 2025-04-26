@@ -69,7 +69,7 @@ async def tocar(interaction: Interaction, url: str):
         'quiet': True,
         'extract_flat': False,
         'nocache': True,
-        'cookiefile': 'storage/cookies.txt',
+        'cookiefile': 'cookies/yt.txt',
     }
 
     await interaction.response.send_message(f'🔎 Baixando áudio... aguarde!', ephemeral=True)
