@@ -15,8 +15,8 @@ from discord import Interaction, app_commands, Intents, Client
 
 load_dotenv()
 
-token = os.getenv("DISCORD_TOKEN")
-
+token = os.getenv("DISCORD_TOKEN_TEST")
+bot_version = os.getenv("BOT_VERSION")
 
 if not token:
     raise ValueError("Token do Discord não encontrado. Defina DISCORD_TOKEN no arquivo .env.")
@@ -95,5 +95,37 @@ async def sair(interaction: Interaction):
     else:
         await interaction.response.send_message("Não estou em nenhum canal de voz.")
 
-# --------- RODA O BOT ----------
+@client.tree.command(description='Lista os comandos disponíveis', guild=discord.Object(GUILD_ID))
+async def help(interaction: Interaction):
+    commands = [
+        {
+            "name": command.name,
+            "description": command.description,
+            "parameters": [param for param in command.parameters]  # Lista nomes dos parâmetros
+        }
+        for command in client.tree.get_commands(guild=interaction.guild)
+    ]
+
+    embed = discord.Embed(title="Comandos disponíveis", color=0x00ff00)
+    if not commands:
+        embed.description = "Nenhum comando encontrado."
+    else:
+        for command in commands:
+            params = ", ".join([param.name for param in command["parameters"]]) if command["parameters"] else "Sem parâmetros"
+            embed.add_field(
+                name=f"/{command['name']}",
+                value=f"{command['description']}\n**Parâmetros:** {params}",
+                inline=False
+            )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+@client.tree.command(description='Mostra informações sobre o bot', guild=discord.Object(GUILD_ID))
+async def info(interaction: Interaction):
+    embed = discord.Embed(title="Informações do Bot", color=0x00ff00)
+    embed.add_field(name="Nome", value=client.user.name, inline=True)
+    embed.add_field(name="ID", value=client.user.id, inline=True)
+    embed.add_field(name="Versão", value=bot_version, inline=True)
+    embed.set_thumbnail(url=client.user.avatar.url)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
 client.run(token)
