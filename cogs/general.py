@@ -50,6 +50,5 @@ class GeneralCog(commands.Cog):
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-# Função essencial para carregar o Cog no bot principal
 async def setup(bot: commands.Bot):
      await bot.add_cog(GeneralCog(bot), guilds=[discord.Object(id=config.GUILD_ID_INT)])

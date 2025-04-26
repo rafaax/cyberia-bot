@@ -23,8 +23,8 @@ class MusicCog(commands.Cog):
         voice_channel = interaction.user.voice.channel
         guild = interaction.guild
 
-        # Conectando ou movendo para o canal de voz
-        if guild.voice_client:
+        
+        if guild.voice_client: # conectando no canal de voz
             vc = guild.voice_client
             if vc.channel != voice_channel:
                 try:
@@ -34,7 +34,7 @@ class MusicCog(commands.Cog):
                      return
         else:
             try:
-                vc = await voice_channel.connect(timeout=30.0) # Timeout de 30s
+                vc = await voice_channel.connect(timeout=30.0) # 30s
             except asyncio.TimeoutError:
                  await interaction.response.send_message("Não consegui me conectar ao seu canal a tempo.", ephemeral=True)
                  return
@@ -83,7 +83,7 @@ class MusicCog(commands.Cog):
         vc = interaction.guild.voice_client
         if vc and vc.is_playing():
             vc.pause()
-            print(f"O usuário {interaction.user} pausou a música.")
+            print(f"> {interaction.user} pausou a música.")
             await interaction.response.send_message("⏸️ Música pausada!")
         elif vc and vc.is_paused():
              await interaction.response.send_message("A música já está pausada.", ephemeral=True)
@@ -94,10 +94,10 @@ class MusicCog(commands.Cog):
     @app_commands.guilds(discord.Object(id=config.GUILD_ID_INT))
     async def retomar(self, interaction: Interaction):
         """Retoma a música que estava pausada."""
-        vc = interaction.guild.voice_client
+        vc = interaction.guild.voice_client # verifica se o bot esta em um canal de voz
         if vc and vc.is_paused():
             vc.resume()
-            print(f"O usuário {interaction.user} retomou a música.")
+            print(f"> {interaction.user} retomou a música.")
             await interaction.response.send_message("▶️ Música retomada!")
         elif vc and vc.is_playing():
              await interaction.response.send_message("A música já está tocando.", ephemeral=True)
@@ -111,9 +111,8 @@ class MusicCog(commands.Cog):
         vc = interaction.guild.voice_client
         if vc and (vc.is_playing() or vc.is_paused()):
             vc.stop()
-            print(f"O usuário {interaction.user} parou a música.")
+            print(f"> {interaction.user} parou a música.")
             await interaction.response.send_message("⏹️ Música parada.")
-            # Se você implementar uma fila, limpe-a aqui também
         else:
             await interaction.response.send_message("Não estou tocando nada no momento.", ephemeral=True)
 
@@ -128,6 +127,5 @@ class MusicCog(commands.Cog):
         else:
             await interaction.response.send_message("Não estou em nenhum canal de voz.", ephemeral=True)
 
-# Função essencial para carregar o Cog no bot principal
 async def setup(bot: commands.Bot):
     await bot.add_cog(MusicCog(bot), guilds=[discord.Object(id=config.GUILD_ID_INT)])
