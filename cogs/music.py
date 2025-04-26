@@ -571,6 +571,16 @@ class MusicCog(commands.Cog):
 
     # --- Listener para Limpeza/Inatividade Automática ---
     @commands.Cog.listener()
+    # O QUE É O  @commands.Cog.listener()?
+
+    # É um decorador usado para criar funções que "escutam" (recebem) eventos do Discord, dentro de um Cog.
+    # Um Cog é uma forma de organizar comandos e eventos em módulos no bot do Discord.
+    # COMO FUNCIONA?
+
+    # Quando você coloca @commands.Cog.listener() antes de um método em uma classe que herda de commands.Cog, você está dizendo que esse método é um ouvinte de evento.
+    # O nome do método precisa ser o mesmo nome de um evento do Discord.py (ex: on_message, on_member_join, etc.).
+    # Sempre que esse evento acontecer no Discord, o método correspondente será chamado.
+
     async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
         # 1. Bot foi desconectado?
         if member.id == self.bot.user.id:
