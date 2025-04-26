@@ -36,8 +36,10 @@ class MusicCog(commands.Cog):
             
             if vc and vc.is_connected() and not vc.is_playing() and not vc.is_paused() and not self.queues.get(guild_id): # REVERIFICA as condições de inatividade ANTES de desconectar
                 print(f"[{guild_id}] Desconectando devido a inatividade.")
-                last_channel = self.last_text_channel.get(guild_id)
-                if last_channel:
+
+                last_channel = self.last_text_channel.get(guild_id) # Pega o último canal conhecido
+
+                if last_channel: # Se o canal ainda existe, tenta enviar a mensagem de desconexão
                     try:
                         await last_channel.send(embed=discord.Embed(
                             description="👋 Desconectando após 2 minutos de inatividade.",
@@ -86,13 +88,13 @@ class MusicCog(commands.Cog):
         """Limpa todas as informações de estado para uma guild."""
 
         print(f"[{guild_id}] Limpando estado completo da guild (fila, música, timer, canal).")
-        if guild_id in self.queues:
+
+        if guild_id in self.queues: # Se a guild tem uma fila
             self.queues[guild_id].clear() # Limpa a queue
 
         self.current_song.pop(guild_id, None) # Limpa a música atual
         self._cancel_inactivity_check(guild_id) # Garante que o timer seja cancelado
         self.last_text_channel.pop(guild_id, None) # Limpa o último canal conhecido
-
 
 
 
@@ -154,7 +156,7 @@ class MusicCog(commands.Cog):
             # Fila vazia, agenda a verificação de inatividade
 
             print(f"[{guild_id}] Fila vazia após tentativa de _play_next.")
-            
+
             vc = guild.voice_client # Pega o VoiceClient da guild
             if vc and vc.is_connected(): # Só agenda se ainda estiver conectado no canal 
                 self._schedule_inactivity_check(guild_id)
