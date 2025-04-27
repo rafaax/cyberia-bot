@@ -20,9 +20,9 @@ except ValueError:
 
 YDL_OPTS = {
     'format': 'bestaudio/best', # Melhor qualidade de áudio
-    'quiet': True,
+    'quiet': True, # Modo silencioso (sem logs)
     'extract_flat': False, # 'False' é necessário para obter a URL direta do stream
-    'nocache': True,
+    'nocache': True, # Não usa cache para downloads
     'noplaylist': False, # Permite processar playlists
     'ignoreerrors': True, # Pula vídeos/músicas com erro em playlists
     'cookiefile': 'cookies/yt.txt',
