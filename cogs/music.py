@@ -236,24 +236,26 @@ class MusicCog(commands.Cog):
             self.queues[guild_id] = deque() # Usando deque para fila (FIFO)
 
         vc: discord.VoiceClient = guild.voice_client # Pega o VoiceClient da guild
+
         # --- Lógica de conexão ao canal que foi chamado ---
-        if not vc or not vc.is_connected():
+        if not vc or not vc.is_connected(): # Se o bot não está conectado a nenhum canal de voz e não deu erro de captar o voice_client
             try:
                 self._cancel_inactivity_check(guild_id)
-                vc = await voice_channel.connect(timeout=30.0)
+                vc = await voice_channel.connect(timeout=30.0) # timeout de 30 segundos para conectar
             except asyncio.TimeoutError:
-                 await interaction.response.send_message("Não consegui me conectar ao seu canal a tempo.", ephemeral=True)
-                 return
+                await interaction.response.send_message("Não consegui me conectar ao seu canal a tempo.", ephemeral=True)
+                return # morre aqui pois nao conseguiu conectar
             except discord.ClientException as e:
-                 await interaction.response.send_message(f"Erro ao conectar: {e}", ephemeral=True)
-                 return
+                await interaction.response.send_message(f"Erro ao conectar: {e}", ephemeral=True)
+                return # morre aqui pois erro de cliente
+                
         elif vc.channel != voice_channel:
             try:
-                 self._cancel_inactivity_check(guild_id)
-                 await vc.move_to(voice_channel)
+                self._cancel_inactivity_check(guild_id)
+                await vc.move_to(voice_channel)
             except asyncio.TimeoutError:
-                 await interaction.response.send_message("Não consegui me mover para o seu canal a tempo.", ephemeral=True)
-                 return
+                await interaction.response.send_message("Não consegui me mover para o seu canal a tempo.", ephemeral=True)
+                return
             
         await interaction.response.send_message(f"🔎 Processando link: `{url}`...")
 
