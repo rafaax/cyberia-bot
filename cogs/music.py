@@ -97,12 +97,9 @@ class MusicCog(commands.Cog):
         self.last_text_channel.pop(guild_id, None) # Limpa o último canal conhecido
 
 
-
-    # --- Funções Principais de Reprodução ---
     async def _play_next(self, guild_id: int):
         """Função interna chamada para tocar a próxima música na fila."""
 
-        
         guild = self.bot.get_guild(guild_id)  # Pega a guild pelo ID
 
         if not guild: # Se a guild não existe, limpa o estado e sai
@@ -122,11 +119,9 @@ class MusicCog(commands.Cog):
             vc = guild.voice_client # Pega o VoiceClient da guild
 
             if not vc or not vc.is_connected():
-                print(f"Erro: VoiceClient não encontrado ou desconectado na guild {guild_id} ao iniciar _play_next.") 
+                # Erro: VoiceClient não encontrado ou desconectado na guild {guild_id} ao iniciar _play_next.
                 self._cleanup_guild_state(guild_id) # Limpa estado se desconectado
                 return # morre aqui
-
-            print(f"[{guild_id}] Tocando próxima: {song_info['title']}")
 
             try:
                 source = await discord.FFmpegOpusAudio.from_probe(song_info['source_url'], **FFMPEG_OPTIONS) # Cria o source de áudio
@@ -138,30 +133,26 @@ class MusicCog(commands.Cog):
                             description=f"🎶 Tocando: **{song_info['title']}** (Pedido por: {song_info['requester'].mention})",
                             color=Color.purple()
                         ))
-                        self.last_text_channel[guild_id] = song_info['channel'] # Garante atualização
+                        self.last_text_channel[guild_id] = song_info['channel'] # atualiza o estado do ultimo canal 
                     except discord.HTTPException:
                         print(f"[{guild_id}] Falha ao enviar mensagem 'Tocando agora'.")
 
             except Exception as e:
-                print(f"Erro ao tentar tocar '{song_info['title']}' na guild {guild_id}: {e}")
                 if song_info.get('channel'):
                     try:
                         await song_info['channel'].send(f"❌ Erro ao tocar **{song_info['title']}**: {e}")
                     except discord.HTTPException:
                         pass
                 
-                self.bot.loop.create_task(self._handle_after_play(e, guild_id)) # Mesmo com erro, chama handle_after_play para limpar e tentar a próxima na esperança 
+                self.bot.loop.create_task(self._handle_after_play(e, guild_id)) # Mesmo com erro, chama handle_after_play para limpar e tentar a próxima na esperança da proxima msc nao bugar :D
         
         else:
             # Fila vazia, agenda a verificação de inatividade
-
-            print(f"[{guild_id}] Fila vazia após tentativa de _play_next.")
-
             vc = guild.voice_client # Pega o VoiceClient da guild
             if vc and vc.is_connected(): # Só agenda se ainda estiver conectado no canal 
                 self._schedule_inactivity_check(guild_id)
             else:
-                print(f"[{guild_id}] VoiceClient desconectado ou não encontrado. Limpando estado.")
+                # VoiceClient desconectado ou não encontrado. Limpando estado.
                 self._cleanup_guild_state(guild_id)  # Limpa o estado da guild, pois não há mais conexão com o canal de voz
 
     async def _handle_after_play(self, error, guild_id):
