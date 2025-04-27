@@ -19,9 +19,11 @@ except ValueError:
      raise ValueError("GUILD_ID no arquivo .env deve ser um número inteiro.")
 
 YDL_OPTS = {
-    'format': 'bestaudio/best',
+    'format': 'bestaudio/best', # Melhor qualidade de áudio
     'quiet': True,
-    'extract_flat': False,
+    'extract_flat': False, # 'False' é necessário para obter a URL direta do stream
     'nocache': True,
+    'noplaylist': False, # Permite processar playlists
+    'ignoreerrors': True, # Pula vídeos/músicas com erro em playlists
     'cookiefile': 'cookies/yt.txt',
 }

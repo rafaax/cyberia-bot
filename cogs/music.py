@@ -9,7 +9,7 @@ import config
 
 FFMPEG_OPTIONS = {
     'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-    'options': '-vn'
+    'options': '-vn -loglevel warning'
 }
 
 class MusicCog(commands.Cog):
@@ -214,17 +214,17 @@ class MusicCog(commands.Cog):
     
     # --- Comandos ---
 
-    @app_commands.command(name='tocar', description='Toca uma música do YouTube ou adiciona à fila')
-    @app_commands.describe(url='URL do vídeo ou playlist do YouTube')
+    @app_commands.command(name='tocar', description='Toca uma música do YouTube ou SoundCloud (URL)') 
+    @app_commands.describe(url='URL do YouTube (vídeo/playlist) ou SoundCloud (música/set)') 
     @app_commands.guilds(discord.Object(id=config.GUILD_ID_INT))
     async def tocar(self, interaction: Interaction, url: str):
-        """Toca uma música ou adiciona à fila."""
+        """Toca uma música do YouTube/SoundCloud ou adiciona à fila.""" 
         guild = interaction.guild
         if not guild:
             await interaction.response.send_message("Este comando só pode ser usado em um servidor.", ephemeral=True)
             return
+        
         guild_id = guild.id
-        # Atualiza o último canal de texto conhecido
         self.last_text_channel[guild_id] = interaction.channel
 
         if not interaction.user.voice or not interaction.user.voice.channel:
@@ -232,17 +232,16 @@ class MusicCog(commands.Cog):
             return
         voice_channel = interaction.user.voice.channel
 
-        if guild_id not in self.queues:
-            self.queues[guild_id] = deque()
+        if guild_id not in self.queues: # Se a guild não tem uma fila, cria uma nova
+            self.queues[guild_id] = deque() # Usando deque para fila (FIFO)
 
-        vc: discord.VoiceClient = guild.voice_client
+        vc: discord.VoiceClient = guild.voice_client # Pega o VoiceClient da guild
+        # --- Lógica de conexão ao canal que foi chamado ---
         if not vc or not vc.is_connected():
             try:
-                # Cancela timer ANTES de tentar conectar
                 self._cancel_inactivity_check(guild_id)
                 vc = await voice_channel.connect(timeout=30.0)
-            # ... (tratamento de erro de conexão) ...
-            except asyncio.TimeoutError: # Restante do try/except da conexão/movimento
+            except asyncio.TimeoutError:
                  await interaction.response.send_message("Não consegui me conectar ao seu canal a tempo.", ephemeral=True)
                  return
             except discord.ClientException as e:
@@ -250,113 +249,142 @@ class MusicCog(commands.Cog):
                  return
         elif vc.channel != voice_channel:
             try:
-                 # Cancela timer ANTES de tentar mover
                  self._cancel_inactivity_check(guild_id)
                  await vc.move_to(voice_channel)
             except asyncio.TimeoutError:
                  await interaction.response.send_message("Não consegui me mover para o seu canal a tempo.", ephemeral=True)
                  return
-
-        await interaction.response.send_message(f"🔎 Processando seu pedido para `{url}`...")
+            
+        await interaction.response.send_message(f"🔎 Processando link: `{url}`...")
 
         try:
-            # ... (lógica ytdl para extrair info - sem mudanças) ...
-            with yt_dlp.YoutubeDL(config.YDL_OPTS) as ydl: # Extrai info da URL
-                await interaction.edit_original_response(content=f"📥 Baixando informações de `{url}`...")
+            # yt-dlp lida com ambos os sites, tanto sc qnt yt, as opções em config.YDL_OPTS geralmente funciona bem para ambos, porém para soundcloud o audio fica meio estranho
+            with yt_dlp.YoutubeDL(config.YDL_OPTS) as ydl:
+                await interaction.edit_original_response(content=f"📥 Obtendo informações de `{url}`...")
                 info = await self.bot.loop.run_in_executor(None, lambda: ydl.extract_info(url, download=False))
 
-            entries_to_add = [] # Lista para guardar as músicas a serem adicionadas
-            playlist_title = None # Guarda o título da playlist
+            entries_to_add = [] # Lista para armazenar as músicas a serem adicionadas à fila caso o usuario adicione + de uma musica / uma playlst por exemplo, tanto sc quanto yt
+            source_type = "Música" # Default
+            list_title = None # Para playlists/sets
 
-            if info and '_type' in info and info['_type'] == 'playlist': # Verifica se é playlist
-                playlist_title = info.get('title', 'Playlist')
-                await interaction.edit_original_response(content=f"📥 Playlist '{playlist_title}' encontrada! Adicionando músicas...")
-                max_playlist_songs = 50 # limite
+            # --- Lógica de Processamento ---
+            # yt-dlp geralmente retorna '_type': 'playlist' para playlists do YT e sets/playlists do SC
+            if info and '_type' in info and info['_type'] == 'playlist':
+                source_type = "Playlist/Set"
+                list_title = info.get('title', source_type) # Usa o título da playlist/set se disponível
+                await interaction.edit_original_response(content=f"📥 {source_type} '{list_title}' encontrado! Adicionando itens...")
+                max_playlist_songs = 50
                 count = 0
-                for entry in info.get('entries', []): # itera sobre as entradas da playlist
+                for entry in info.get('entries', []):
                     if count >= max_playlist_songs:
-                        print(f"[{guild_id}] Limite de {max_playlist_songs} músicas da playlist atingido.")
+                        print(f"[{guild_id}] Limite de {max_playlist_songs} itens da lista atingido.")
                         break
-                    if entry and entry.get('url'): # se a entrada é válida e tem url
+                    # Verifica se a entrada é válida e contém a URL do stream
+                    # yt-dlp pode retornar 'url' ou outros campos dependendo da extração
+                    stream_url = entry.get('url')
+                    if not stream_url and 'formats' in entry: # Tenta pegar de 'formats' se 'url' não estiver no topo
+                         # Pega o melhor formato de áudio (pode precisar de ajuste fino)
+                         audio_formats = [f for f in entry['formats'] if f.get('vcodec') == 'none' and f.get('acodec') != 'none']
+                         if audio_formats:
+                              stream_url = audio_formats[-1].get('url') # Pega o de maior bitrate/qualidade (geralmente o último)
+
+                    if entry and stream_url:
                         song_data = {
                             'title': entry.get('title', 'Título desconhecido'),
-                            'source_url': entry['url'],
+                            'source_url': stream_url, # URL do stream de áudio
                             'requester': interaction.user,
                             'channel': interaction.channel,
-                            'original_url': entry.get('webpage_url', url)
+                            'original_url': entry.get('webpage_url', url) # Link original da música/vídeo
                         }
                         entries_to_add.append(song_data)
                         count += 1
                     else:
                         title = entry.get('title', 'entrada inválida') if entry else 'entrada nula'
-                        print(f"[{guild_id}] Música da playlist inválida ou sem URL de áudio: {title}")
+                        print(f"[{guild_id}] Item da lista inválido ou sem URL de áudio: {title}")
+
                 if not entries_to_add:
-                    await interaction.edit_original_response(content=f"❌ Nenhuma música válida encontrada na playlist `{playlist_title or url}`.")
-                    # Agenda inatividade se nada foi adicionado e nada está tocando
+                    await interaction.edit_original_response(content=f"❌ Nenhuma música/vídeo válido encontrado na lista `{list_title or url}`.")
                     if not vc.is_playing() and not vc.is_paused():
                         self._schedule_inactivity_check(guild_id)
                     return
-            elif info and 'url' in info: # Verifica se é vídeo único
-                song_data = {
-                    'title': info.get('title', 'Título desconhecido'),
-                    'source_url': info['url'],
-                    'requester': interaction.user,
-                    'channel': interaction.channel,
-                    'original_url': info.get('webpage_url', url)
-                }
-                entries_to_add.append(song_data)
-            else: # Caso inesperado ou erro na extração
+
+            # Verifica se é um item único (vídeo do YT, música do SC)
+            elif info and info.get('url'):
+                stream_url = info.get('url')
+                if not stream_url and 'formats' in info: # Fallback para formatos
+                     audio_formats = [f for f in info['formats'] if f.get('vcodec') == 'none' and f.get('acodec') != 'none']
+                     if audio_formats:
+                          stream_url = audio_formats[-1].get('url')
+
+                if stream_url:
+                    source_type = info.get('extractor_key', 'Música').capitalize() # Ex: 'Youtube', 'Soundcloud'
+                    song_data = {
+                        'title': info.get('title', 'Título desconhecido'),
+                        'source_url': stream_url,
+                        'requester': interaction.user,
+                        'channel': interaction.channel,
+                        'original_url': info.get('webpage_url', url)
+                    }
+                    entries_to_add.append(song_data)
+                else:
+                    # Se chegou aqui como item único mas não achou stream_url
+                    raise ValueError("Não foi possível encontrar uma URL de stream de áudio válida.")
+
+
+            # --- Caso de Erro/Inesperado ---
+            else:
                 errmsg = "❌ Não consegui processar esta URL."
-                if not info: errmsg += " (Falha ao obter informações)"
-                elif 'url' not in info: errmsg += " (Formato de áudio não encontrado)"
+
+                if not info:
+                    errmsg += " (Falha ao obter informações)"
+                elif not info.get('url') and not (info.get('_type') == 'playlist' and info.get('entries')):
+                    errmsg += " (Formato de áudio não encontrado ou tipo de item inválido)"
+
                 await interaction.edit_original_response(content=errmsg)
-                # Agenda inatividade se falhou e nada está tocando
-                if not vc.is_playing() and not vc.is_paused():
+
+                if not vc.is_playing() and not vc.is_paused(): # Se não está tocando nada, agenda a verificação de inatividade
                     self._schedule_inactivity_check(guild_id)
                 return
 
-
-            # Adiciona à fila
-            if entries_to_add:
-                 # Cancela timer pois houve atividade
-                 self._cancel_inactivity_check(guild_id)
-                 for song in entries_to_add:
-                      self.queues[guild_id].append(song)
+            # --- Lógica de Adição à Fila e Início () ---
+            if entries_to_add: # Se houver músicas para adicionar
+                self._cancel_inactivity_check(guild_id) # Cancela o timer de inatividade, pois houve atividade
+                for song in entries_to_add:
+                    self.queues[guild_id].append(song) # Adiciona à fila
             else:
-                 # Se por algum motivo entries_to_add ficou vazia após processar, não faz nada
-                 # (O código anterior já teria retornado ou agendado inatividade)
-                 return
+                await interaction.edit_original_response(content="❌ Algo deu errado, nenhuma música foi adicionada.")
+                if not vc.is_playing() and not vc.is_paused(): # Se não está tocando nada, agenda a verificação de inatividade
+                    self._schedule_inactivity_check(guild_id)
+                return # morre 
 
+            num_added = len(entries_to_add) # Número de músicas adicionadas à fila
 
-            num_added = len(entries_to_add)
-            if num_added > 1:
-                queue_msg = f"✅ Adicionadas **{num_added}** músicas da playlist '{playlist_title}' à fila!"
-            elif num_added == 1 :
-                queue_msg = f"✅ Adicionado à fila: **{entries_to_add[0]['title']}**"
-            # Se num_added == 0, não chega aqui
+            if num_added > 1: # Se mais de uma música foi adicionada 
+                queue_msg = f"✅ Adicionados **{num_added}** itens de '{list_title}' à fila!"
+            elif num_added == 1:
+                queue_msg = f"✅ Adicionado à fila: **{entries_to_add[0]['title']}** ({source_type})"
 
-
-            # Inicia a reprodução se NADA estiver tocando
-            if not vc.is_playing() and not vc.is_paused():
-                print(f"[{guild_id}] Nada tocando, iniciando reprodução com a(s) nova(s) música(s).")
-                # Edita a msg original ANTES de chamar _play_next
+            
+            if not vc.is_playing() and not vc.is_paused(): # Inicia a reprodução se NADA estiver tocando
+                print(f"[{guild_id}] Nada tocando, iniciando reprodução com o(s) novo(s) item(ns).")
                 await interaction.edit_original_response(content=f"▶️ Iniciando reprodução com: **{entries_to_add[0]['title']}**")
-                await self._play_next(guild_id) # _play_next vai enviar a msg "Tocando"
+                await self._play_next(guild_id)
             else:
-                # Se já estiver tocando, apenas informa que foi adicionado
                 print(f"[{guild_id}] Adicionando à fila. Música atual ou pausada existe.")
                 await interaction.edit_original_response(content=queue_msg)
 
-
+        # --- Blocos Except ---
         except yt_dlp.utils.DownloadError as e:
-            await interaction.edit_original_response(content=f"❌ Erro ao processar a URL: `{e}`. Verifique o link ou se ele é suportado.")
-            # Agenda inatividade se deu erro e nada está tocando
-            if vc and not vc.is_playing() and not vc.is_paused():
+            await interaction.edit_original_response(content=f"❌ Erro ao processar a URL: Verifique o link ou se ele é suportado.\n`{e}`")
+            if vc and not vc.is_playing() and not vc.is_paused(): # Se não está tocando nada, agenda a verificação de inatividade
+                self._schedule_inactivity_check(guild_id)
+        except ValueError as e: # Captura o erro de stream_url não encontrado
+             await interaction.edit_original_response(content=f"❌ {e}")
+             if vc and not vc.is_playing() and not vc.is_paused():
                 self._schedule_inactivity_check(guild_id)
         except Exception as e:
-            print(f"Erro inesperado no comando 'tocar' [{guild_id}]: {e}")
-            await interaction.edit_original_response(content=f" Ocorreu um erro inesperado: {str(e)}")
-            # Agenda inatividade se deu erro e nada está tocando
+            print(f"Erro inesperado no comando 'tocar' [{guild_id}]: {type(e).__name__} - {e}")
+            await interaction.edit_original_response(content=f" Ocorreu um erro inesperado ao processar seu pedido.")
             if vc and not vc.is_playing() and not vc.is_paused():
                 self._schedule_inactivity_check(guild_id)
 
@@ -569,7 +597,7 @@ class MusicCog(commands.Cog):
             await interaction.response.send_message("Não estou tocando nada no momento.", ephemeral=True)
 
 
-    # --- Listener para Limpeza/Inatividade Automática ---
+    # --- Listener ---
     @commands.Cog.listener()
     # O QUE É O  @commands.Cog.listener()?
 
