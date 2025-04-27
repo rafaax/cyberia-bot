@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-TOKEN = os.getenv("DISCORD_TOKEN_TEST")
+TOKEN = os.getenv("DISCORD_TOKEN_PROD")
 BOT_VERSION = os.getenv("BOT_VERSION", "0")
 GUILD_ID = os.getenv("GUILD_ID")
 

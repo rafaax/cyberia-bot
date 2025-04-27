@@ -26,7 +26,7 @@ class GeneralCog(commands.Cog):
 
         print(f"--- Comando /help acionado por {interaction.user} na Guild ID: {interaction.guild.id} ---")
 
-        embed = discord.Embed(title="Comandos disponíveis (Leitura Local)", color=discord.Color.green())
+        embed = discord.Embed(title="Comandos disponíveis", color=discord.Color.green())
 
         if not interaction.guild:
             await interaction.response.send_message("Erro: Guild não encontrada na interação.", ephemeral=True)
