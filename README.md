@@ -13,8 +13,10 @@ Cyberia Bot é um projeto desenvolvido para oferecer funcionalidades diretamente
 - **Python**: v3.11 ou superior
 - **Pip**: Gerenciador de pacotes para Python
 - **Variáveis de ambiente**:
-    - `DISCORD_TOKEN`: Token do seu bot no Discord
+    - `DISCORD_TOKEN_TEST/DISCORD_TOKEN_PROD`: Token do bot no Discord
     - `GUILD_ID`: ID do servidor Discord onde o bot será utilizado
+    - `BOT_VERSION`: No momento estou usando 0.0.1 pois ainda não lancei oficialmente
+    
 
 
 ## Instalação
@@ -34,7 +36,7 @@ Cyberia Bot é um projeto desenvolvido para oferecer funcionalidades diretamente
 
 ## Uso
 
-Configure suas variáveis de ambiente (`DISCORD_TOKEN` e `GUILD_ID`), depois inicie o bot com o seguinte comando:
+Configure suas variáveis de ambiente no arquivo .env (as quais falo no topico de requisitos), depois inicie o bot com o seguinte comando:
 ```bash
 python index.py
 ```
