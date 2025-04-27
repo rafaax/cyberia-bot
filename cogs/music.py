@@ -210,28 +210,33 @@ class MusicCog(commands.Cog):
     @app_commands.guilds(discord.Object(id=config.GUILD_ID_INT))
     async def tocar(self, interaction: Interaction, url: str):
         """Toca uma música do YouTube/SoundCloud ou adiciona à fila.""" 
-        guild = interaction.guild
-        if not guild:
-            await interaction.response.send_message("Este comando só pode ser usado em um servidor.", ephemeral=True)
+
+        print(f"> {interaction.user} usou /tocar.")
+
+
+        guild = interaction.guild # Pega a guild do comando
+
+        if not guild: # Verifica se o comando foi chamado em um servidor
             return
         
-        guild_id = guild.id
-        self.last_text_channel[guild_id] = interaction.channel
+        self.last_text_channel[guild.id] = interaction.channel
 
         if not interaction.user.voice or not interaction.user.voice.channel:
             await interaction.response.send_message("Você precisa estar em um canal de voz!", ephemeral=True)
             return
+        
+        
         voice_channel = interaction.user.voice.channel
 
-        if guild_id not in self.queues: # Se a guild não tem uma fila, cria uma nova
-            self.queues[guild_id] = deque() # Usando deque para fila (FIFO)
+        if guild.id not in self.queues: # Se a guild não tem uma fila, cria uma nova
+            self.queues[guild.id] = deque() # Usando deque para fila (FIFO)
 
         vc: discord.VoiceClient = guild.voice_client # Pega o VoiceClient da guild
 
         # --- Lógica de conexão ao canal que foi chamado ---
         if not vc or not vc.is_connected(): # Se o bot não está conectado a nenhum canal de voz e não deu erro de captar o voice_client
             try:
-                self._cancel_inactivity_check(guild_id)
+                self._cancel_inactivity_check(guild.id)
                 vc = await voice_channel.connect(timeout=30.0) # timeout de 30 segundos para conectar
             except asyncio.TimeoutError:
                 await interaction.response.send_message("Não consegui me conectar ao seu canal a tempo.", ephemeral=True)
@@ -242,7 +247,7 @@ class MusicCog(commands.Cog):
                 
         elif vc.channel != voice_channel:
             try:
-                self._cancel_inactivity_check(guild_id)
+                self._cancel_inactivity_check(guild.id)
                 await vc.move_to(voice_channel)
             except asyncio.TimeoutError:
                 await interaction.response.send_message("Não consegui me mover para o seu canal a tempo.", ephemeral=True)
@@ -270,7 +275,7 @@ class MusicCog(commands.Cog):
                 count = 0
                 for entry in info.get('entries', []):
                     if count >= max_playlist_songs:
-                        print(f"[{guild_id}] Limite de {max_playlist_songs} itens da lista atingido.")
+                        print(f"[{guild.id}] Limite de {max_playlist_songs} itens da lista atingido.")
                         break
                     # Verifica se a entrada é válida e contém a URL do stream
                     # yt-dlp pode retornar 'url' ou outros campos dependendo da extração
@@ -293,12 +298,12 @@ class MusicCog(commands.Cog):
                         count += 1
                     else:
                         title = entry.get('title', 'entrada inválida') if entry else 'entrada nula'
-                        print(f"[{guild_id}] Item da lista inválido ou sem URL de áudio: {title}")
+                        print(f"[{guild.id}] Item da lista inválido ou sem URL de áudio: {title}")
 
                 if not entries_to_add:
                     await interaction.edit_original_response(content=f"❌ Nenhuma música/vídeo válido encontrado na lista `{list_title or url}`.")
                     if not vc.is_playing() and not vc.is_paused():
-                        self._schedule_inactivity_check(guild_id)
+                        self._schedule_inactivity_check(guild.id)
                     return
 
             # Verifica se é um item único (vídeo do YT, música do SC)
@@ -336,18 +341,18 @@ class MusicCog(commands.Cog):
                 await interaction.edit_original_response(content=errmsg)
 
                 if not vc.is_playing() and not vc.is_paused(): # Se não está tocando nada, agenda a verificação de inatividade
-                    self._schedule_inactivity_check(guild_id)
+                    self._schedule_inactivity_check(guild.id)
                 return
 
             # --- Lógica de Adição à Fila e Início () ---
             if entries_to_add: # Se houver músicas para adicionar
-                self._cancel_inactivity_check(guild_id) # Cancela o timer de inatividade, pois houve atividade
+                self._cancel_inactivity_check(guild.id) # Cancela o timer de inatividade, pois houve atividade
                 for song in entries_to_add:
-                    self.queues[guild_id].append(song) # Adiciona à fila
+                    self.queues[guild.id].append(song) # Adiciona à fila
             else:
                 await interaction.edit_original_response(content="❌ Algo deu errado, nenhuma música foi adicionada.")
                 if not vc.is_playing() and not vc.is_paused(): # Se não está tocando nada, agenda a verificação de inatividade
-                    self._schedule_inactivity_check(guild_id)
+                    self._schedule_inactivity_check(guild.id)
                 return # morre 
 
             num_added = len(entries_to_add) # Número de músicas adicionadas à fila
@@ -359,41 +364,44 @@ class MusicCog(commands.Cog):
 
             
             if not vc.is_playing() and not vc.is_paused(): # Inicia a reprodução se NADA estiver tocando
-                print(f"[{guild_id}] Nada tocando, iniciando reprodução com o(s) novo(s) item(ns).")
                 await interaction.edit_original_response(content=f"▶️ Iniciando reprodução com: **{entries_to_add[0]['title']}**")
-                await self._play_next(guild_id)
+                await self._play_next(guild.id)
             else:
-                print(f"[{guild_id}] Adicionando à fila. Música atual ou pausada existe.")
+                # Se já está tocando ou pausado, apenas adiciona à fila
                 await interaction.edit_original_response(content=queue_msg)
 
         # --- Blocos Except ---
         except yt_dlp.utils.DownloadError as e:
             await interaction.edit_original_response(content=f"❌ Erro ao processar a URL: Verifique o link ou se ele é suportado.\n`{e}`")
             if vc and not vc.is_playing() and not vc.is_paused(): # Se não está tocando nada, agenda a verificação de inatividade
-                self._schedule_inactivity_check(guild_id)
+                self._schedule_inactivity_check(guild.id)
         except ValueError as e: # Captura o erro de stream_url não encontrado
              await interaction.edit_original_response(content=f"❌ {e}")
              if vc and not vc.is_playing() and not vc.is_paused():
-                self._schedule_inactivity_check(guild_id)
+                self._schedule_inactivity_check(guild.id)
         except Exception as e:
-            print(f"Erro inesperado no comando 'tocar' [{guild_id}]: {type(e).__name__} - {e}")
+            print(f"Erro inesperado no comando 'tocar' [{guild.id}]: {type(e).__name__} - {e}")
             await interaction.edit_original_response(content=f" Ocorreu um erro inesperado ao processar seu pedido.")
             if vc and not vc.is_playing() and not vc.is_paused():
-                self._schedule_inactivity_check(guild_id)
+                self._schedule_inactivity_check(guild.id)
 
 
     @app_commands.command(name='pular', description='Pula a música atual')
     @app_commands.guilds(discord.Object(id=config.GUILD_ID_INT))
     async def pular(self, interaction: Interaction):
         """Pula para a próxima música na fila."""
+
+        print(f"> {interaction.user} usou /pular.")
+
         guild = interaction.guild
-        if not guild: return
-        guild_id = guild.id
-        self.last_text_channel[guild_id] = interaction.channel # Atualiza canal
+        if not guild:  # Verifica se o comando foi chamado em um servidor
+            return
+        
+        self.last_text_channel[guild.id] = interaction.channel # Atualiza o ultimo canal 
 
         vc = guild.voice_client
-        # Verifica se está tocando OU pausado para poder pular
-        if not vc or (not vc.is_playing() and not vc.is_paused()):
+        
+        if not vc or (not vc.is_playing() and not vc.is_paused()): # Verifica se está tocando OU pausado para poder pular
             await interaction.response.send_message("Não estou tocando ou pausado para pular.", ephemeral=True)
             return
 
@@ -401,10 +409,10 @@ class MusicCog(commands.Cog):
             await interaction.response.send_message("Você precisa estar no mesmo canal de voz para pular.", ephemeral=True)
             return
 
-        current = self.current_song.get(guild_id) # Pega a música atual ANTES de parar
+        current = self.current_song.get(guild.id) # Pega a música atual ANTES de parar
         title = f"**{current['title']}**" if current else "a música atual"
 
-        print(f"[{guild_id}] {interaction.user} pulou a música.")
+        print(f"> {interaction.user} pulou a música.")
         await interaction.response.send_message(f"⏭️ Pulando {title}...")
     
         vc.stop() # Parar a música atual acionará _handle_after_play
@@ -414,20 +422,20 @@ class MusicCog(commands.Cog):
     @app_commands.guilds(discord.Object(id=config.GUILD_ID_INT))
     async def retomar(self, interaction: Interaction):
         """Retoma a música que estava pausada."""
+
+        print(f"> {interaction.user} usou /retomar.")
+
         guild = interaction.guild
 
         if not guild:  # Verifica se o comando foi chamado em um servidor
             return
         
-
-        guild_id = guild.id # Pega o ID da guild
-
-        self.last_text_channel[guild_id] = interaction.channel # Atualiza canal que o comando foi chamado
+        self.last_text_channel[guild.id] = interaction.channel # Atualiza canal que o comando foi chamado
 
         vc = interaction.guild.voice_client # Pega o VoiceClient da guild
 
         if vc and vc.is_paused(): # Verifica se o bot está pausado
-            self._cancel_inactivity_check(guild_id) # Cancela timer pois retomar é uma atividade válida
+            self._cancel_inactivity_check(guild.id) # Cancela timer pois retomar é uma atividade válida
             vc.resume() # Retoma a música pausada
 
             print(f"> {interaction.user} retomou a música.")
@@ -444,6 +452,8 @@ class MusicCog(commands.Cog):
     async def parar(self, interaction: Interaction):
         """Para a reprodução de música atual e limpa a fila."""
 
+        print(f"> {interaction.user} usou /parar.")
+
         guild = interaction.guild # Pega a guild do comando
 
         if not guild: # Verifica se o comando foi chamado em um servidor
@@ -457,8 +467,7 @@ class MusicCog(commands.Cog):
 
         was_active = vc and (vc.is_playing() or vc.is_paused()) # Verifica se estava tocando ou pausado
 
-        print(f"> {interaction.user} usou /parar.")
-        
+
         self._cleanup_guild_state(guild_id) # Limpa tudo, incluindo timer antes de parar a música
 
         if was_active: # Se estava tocando ou pausado
@@ -472,6 +481,8 @@ class MusicCog(commands.Cog):
     @app_commands.guilds(discord.Object(id=config.GUILD_ID_INT))
     async def sair(self, interaction: Interaction):
         """Desconecta o bot do canal de voz e limpa a fila."""
+
+        print(f"> {interaction.user} usou /sair.")
         
         guild = interaction.guild # Pega a guild do comando
 
@@ -485,8 +496,6 @@ class MusicCog(commands.Cog):
         vc = guild.voice_client # Pega o VoiceClient da guild
         
         was_connected = vc and vc.is_connected() # Verifica se o bot está conectado ao canal de voz
-
-        print(f"> {interaction.user} usou /sair.")
         
         self._cleanup_guild_state(guild_id) # Limpa tudo, incluindo timer antes de desconectar
 
@@ -503,6 +512,8 @@ class MusicCog(commands.Cog):
     @app_commands.guilds(discord.Object(id=config.GUILD_ID_INT))
     async def fila(self, interaction: Interaction):
         """Exibe a fila de músicas."""
+        
+        print(f"> {interaction.user} usou /fila.")
         
         guild = interaction.guild # Pega a guild do comando
         
@@ -567,6 +578,8 @@ class MusicCog(commands.Cog):
     async def pausar(self, interaction: Interaction):
         """Pausa a música que está tocando."""
 
+        print(f"> {interaction.user} usou /pausar.")
+
         guild = interaction.guild # Pega a guild do comando
 
         if not guild: # Verifica se o comando foi chamado em um servidor
@@ -625,12 +638,10 @@ class MusicCog(commands.Cog):
         elif after.channel is not None and member.id != self.bot.user.id: 
             guild = after.channel.guild # Pega a guild do canal de voz
             vc = guild.voice_client # Pega o VoiceClient da guild
-            # Verifica se o bot está nesse canal, se antes só tinha ele e se agora tem mais gente
-            if vc and vc.channel == after.channel and len(after.channel.members) > 1 and len(before.channel.members) == 1 if before.channel == after.channel else True :
-                # Verifica se havia um timer de inatividade agendado
-                if guild.id in self.inactivity_timers:
-                    print(f"[{guild.id}] Usuário entrou no canal onde o bot estava inativo. Cancelando timer.")
-                    self._cancel_inactivity_check(guild.id)
+            
+            if vc and vc.channel == after.channel and len(after.channel.members) > 1 and len(before.channel.members) == 1 if before.channel == after.channel else True : # Verifica se o bot está nesse canal, se antes só tinha ele e se agora tem mais gente
+                if guild.id in self.inactivity_timers: # Verifica se havia um timer de inatividade agendado
+                    self._cancel_inactivity_check(guild.id) # Usuário entrou no canal onde o bot estava inativo. Cancelando timer.
 
 
 async def setup(bot: commands.Bot):
