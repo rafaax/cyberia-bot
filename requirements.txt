@@ -1,7 +1,4 @@
 discord
 yt_dlp
 dotenv
-inspect
-json
-os
 asyncio
